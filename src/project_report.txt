@@ -1,0 +1,2299 @@
+项目目录: E:\desktop\mdk3\src
+生成时间: src
+扫描脚本: project_scanner.py (已自动排除)
+============================================================
+
+├── project_report.txt
+  路径: E:\desktop\mdk3\src\project_report.txt
+  内容:
+    ----------------------------------------
+    ----------------------------------------
+
+├── [generated]/
+  ├── [resources]/
+├── [main]/
+  ├── [java]/
+    ├── [com]/
+      ├── [armorplate]/
+        ├── ArmorPlateMod.java
+          路径: E:\desktop\mdk3\src\main\java\com\armorplate\ArmorPlateMod.java
+          内容:
+            ----------------------------------------
+            package com.armorplate;
+            
+            import com.armorplate.config.PlateConfig;
+            import com.armorplate.init.ModItems;
+            import com.armorplate.screen.ModMenuTypes;
+            import com.armorplate.screen.PlateScreen;
+            import net.minecraft.client.gui.screens.MenuScreens;
+            import net.minecraftforge.api.distmarker.Dist;
+            import net.minecraftforge.common.MinecraftForge;
+            import net.minecraftforge.eventbus.api.IEventBus;
+            import net.minecraftforge.eventbus.api.SubscribeEvent;
+            import net.minecraftforge.fml.ModLoadingContext;
+            import net.minecraftforge.fml.common.Mod;
+            import net.minecraftforge.fml.config.ModConfig;
+            import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
+            import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+            import net.minecraft.resources.ResourceLocation;
+            import net.minecraftforge.network.NetworkRegistry;
+            import net.minecraftforge.network.simple.SimpleChannel;
+            
+            @Mod(ArmorPlateMod.MODID)
+            public class ArmorPlateMod {
+                public static final String MODID = "armorplate";
+            
+                // 网络通道
+                private static final String PROTOCOL_VERSION = "1";
+                public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
+                        ResourceLocation.fromNamespaceAndPath(MODID, "main"),
+                        () -> PROTOCOL_VERSION,
+                        PROTOCOL_VERSION::equals,
+                        PROTOCOL_VERSION::equals
+                );
+            
+                public ArmorPlateMod() {
+                    IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
+            
+                    // 注册配置
+                    ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, PlateConfig.SPEC);
+            
+                    // 注册物品
+                    ModItems.ITEMS.register(modEventBus);
+            
+                    // 注册菜单
+                    ModMenuTypes.MENUS.register(modEventBus);
+            
+                    // 注册事件处理器
+                    MinecraftForge.EVENT_BUS.register(new com.armorplate.event.PlateEvents());
+                    MinecraftForge.EVENT_BUS.register(new com.armorplate.event.AttributeModifiers());
+            
+                    // 注册客户端设置事件
+                    modEventBus.addListener(this::clientSetup);
+                    registerPackets();
+                }
+            
+                private void registerPackets() {
+                    int packetId = 0;
+                    CHANNEL.registerMessage(packetId++,
+                            com.armorplate.network.OpenPlateGUIPacket.class,
+                            com.armorplate.network.OpenPlateGUIPacket::encode,
+                            com.armorplate.network.OpenPlateGUIPacket::decode,
+                            com.armorplate.network.OpenPlateGUIPacket::handle
+                    );
+                }
+            
+                private void clientSetup(FMLClientSetupEvent event) {
+                    event.enqueueWork(() -> {
+                        MenuScreens.register(ModMenuTypes.PLATE_MENU.get(), PlateScreen::new);
+                    });
+                }
+            }
+            ----------------------------------------
+
+        ├── [client]/
+          └── PlateKeyHandler.java
+            路径: E:\desktop\mdk3\src\main\java\com\armorplate\client\PlateKeyHandler.java
+            内容:
+              ----------------------------------------
+              package com.armorplate.client;
+              
+              import com.armorplate.ArmorPlateMod;
+              import net.minecraft.client.KeyMapping;
+              import net.minecraft.client.Minecraft;
+              import net.minecraft.world.entity.EquipmentSlot;
+              import net.minecraft.world.item.ArmorItem;
+              import net.minecraft.world.item.ItemStack;
+              import net.minecraftforge.api.distmarker.Dist;
+              import net.minecraftforge.client.event.InputEvent;
+              import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
+              import net.minecraftforge.eventbus.api.SubscribeEvent;
+              import net.minecraftforge.fml.common.Mod;
+              import org.apache.logging.log4j.LogManager;
+              import org.apache.logging.log4j.Logger;
+              import org.lwjgl.glfw.GLFW;
+              
+              @Mod.EventBusSubscriber(modid = ArmorPlateMod.MODID, value = Dist.CLIENT)
+              public class PlateKeyHandler {
+                  private static final Logger LOGGER = LogManager.getLogger();
+              
+                  public static final KeyMapping OPEN_PLATE_GUI = new KeyMapping(
+                          "key.armorplate.open_plate_gui",
+                          GLFW.GLFW_KEY_R,
+                          "category.armorplate.plates"
+                  );
+              
+                  @SubscribeEvent
+                  public static void onRegisterKeyBindings(RegisterKeyMappingsEvent event) {
+                      event.register(OPEN_PLATE_GUI);
+                  }
+              
+                  @SubscribeEvent
+                  public static void onKeyInput(InputEvent.Key event) {
+                      Minecraft mc = Minecraft.getInstance();
+                      if (mc.player == null || mc.level == null) return;
+              
+                      if (OPEN_PLATE_GUI.consumeClick()) {
+                          LOGGER.info("R键被按下");
+              
+                          // 获取手持物品
+                          ItemStack heldItem = mc.player.getMainHandItem();
+              
+                          // 检查是否手持胸甲
+                          if (heldItem.getItem() instanceof ArmorItem armorItem) {
+                              if (armorItem.getEquipmentSlot() == EquipmentSlot.CHEST) {
+                                  LOGGER.info("手持胸甲: {}", heldItem.getDisplayName().getString());
+                                  // 发送打开GUI的请求到服务器
+                                  sendOpenGUIRequest(heldItem);
+                              } else {
+                                  LOGGER.info("不是胸甲，是: {}", armorItem.getEquipmentSlot());
+                              }
+                          } else {
+                              LOGGER.info("手持物品不是护甲: {}",
+                                      heldItem.isEmpty() ? "空手" : heldItem.getItem().getName(heldItem).getString());
+                          }
+                      }
+                  }
+              
+                  private static void sendOpenGUIRequest(ItemStack chestplate) {
+                      LOGGER.info("发送打开GUI请求");
+                      // 发送网络数据包到服务器
+                      ArmorPlateMod.CHANNEL.sendToServer(new com.armorplate.network.OpenPlateGUIPacket(chestplate));
+                  }
+              }
+              ----------------------------------------
+
+        ├── [config]/
+          └── PlateConfig.java
+            路径: E:\desktop\mdk3\src\main\java\com\armorplate\config\PlateConfig.java
+            内容:
+              ----------------------------------------
+              package com.armorplate.config;
+              
+              import net.minecraftforge.common.ForgeConfigSpec;
+              
+              public class PlateConfig {
+                  public static final ForgeConfigSpec.Builder BUILDER = new ForgeConfigSpec.Builder();
+                  public static final ForgeConfigSpec SPEC;
+              
+                  public static final ForgeConfigSpec.ConfigValue<Double> BASE_ARMOR_BONUS;
+                  public static final ForgeConfigSpec.ConfigValue<Double> BASE_TOUGHNESS_BONUS;
+                  public static final ForgeConfigSpec.ConfigValue<Double> DAMAGE_THRESHOLD;
+                  public static final ForgeConfigSpec.ConfigValue<Double> DAMAGE_REDUCTION_PERCENT;
+                  public static final ForgeConfigSpec.ConfigValue<Boolean> ENABLE_SPECIAL_PROTECTION;
+                  public static final ForgeConfigSpec.IntValue STEEL_PLATE_DURABILITY;
+                  public static final ForgeConfigSpec.IntValue CERAMIC_PLATE_DURABILITY;
+                  public static final ForgeConfigSpec.IntValue COMPOSITE_PLATE_DURABILITY;
+              
+                  static {
+                      BUILDER.push("防弹插板设置");
+              
+                      BASE_ARMOR_BONUS = BUILDER
+                              .comment("钢板插板的基准护甲加成，其他插板在此基础上按比例调整")
+                              .defineInRange("baseArmorBonus", 4.0, 0.0, 20.0);
+              
+                      BASE_TOUGHNESS_BONUS = BUILDER
+                              .comment("钢板插板的基准护甲韧性加成，其他插板在此基础上按比例调整")
+                              .defineInRange("baseToughnessBonus", 2.0, 0.0, 10.0);
+              
+                      DAMAGE_THRESHOLD = BUILDER
+                              .comment("钢板插板的基准伤害阈值（低于此值的子弹伤害完全抵消），其他插板在此基础上按比例调整")
+                              .defineInRange("damageThreshold", 6.0, 0.0, 100.0);
+              
+                      DAMAGE_REDUCTION_PERCENT = BUILDER
+                              .comment("钢板插板的基准伤害减免百分比（0-1），其他插板在此基础上按比例调整")
+                              .defineInRange("damageReductionPercent", 0.3, 0.0, 1.0);
+              
+                      ENABLE_SPECIAL_PROTECTION = BUILDER
+                              .comment("是否启用特殊伤害源保护（如子弹）")
+                              .define("enableSpecialProtection", true);
+              
+                      STEEL_PLATE_DURABILITY = BUILDER
+                              .comment("钢制插板的最大耐久")
+                              .defineInRange("steelPlateDurability", 200, 1, 10000);
+              
+                      CERAMIC_PLATE_DURABILITY = BUILDER
+                              .comment("陶瓷插板的最大耐久")
+                              .defineInRange("ceramicPlateDurability", 150, 1, 10000);
+              
+                      COMPOSITE_PLATE_DURABILITY = BUILDER
+                              .comment("复合插板的最大耐久")
+                              .defineInRange("compositePlateDurability", 300, 1, 10000);
+              
+                      BUILDER.pop();
+                      SPEC = BUILDER.build();
+                  }
+              }
+              ----------------------------------------
+
+        ├── [event]/
+          ├── AttributeModifiers.java
+            路径: E:\desktop\mdk3\src\main\java\com\armorplate\event\AttributeModifiers.java
+            内容:
+              ----------------------------------------
+              package com.armorplate.event;
+              
+              import com.armorplate.item.ArmorPlateItem;
+              import net.minecraft.nbt.CompoundTag;
+              import net.minecraft.nbt.Tag;
+              import net.minecraft.world.entity.EquipmentSlot;
+              import net.minecraft.world.entity.LivingEntity;
+              import net.minecraft.world.entity.ai.attributes.AttributeInstance;
+              import net.minecraft.world.entity.ai.attributes.AttributeModifier;
+              import net.minecraft.world.entity.ai.attributes.Attributes;
+              import net.minecraft.world.item.ArmorItem;
+              import net.minecraft.world.item.ItemStack;
+              import net.minecraftforge.event.entity.living.LivingEquipmentChangeEvent;
+              import net.minecraftforge.eventbus.api.SubscribeEvent;
+              import net.minecraftforge.fml.common.Mod;
+              import org.apache.logging.log4j.LogManager;
+              import org.apache.logging.log4j.Logger;
+              
+              import java.util.UUID;
+              
+              @Mod.EventBusSubscriber(modid = "armorplate", bus = Mod.EventBusSubscriber.Bus.FORGE)
+              public class AttributeModifiers {
+                  private static final Logger LOGGER = LogManager.getLogger();
+              
+                  private static final UUID PLATE_ARMOR_UUID = UUID.fromString("845DB27C-C624-495F-8C9F-6020A9A58B6F");
+                  private static final UUID PLATE_TOUGHNESS_UUID = UUID.fromString("D8499B04-0E66-4726-AB29-64469D9B0693");
+              
+                  @SubscribeEvent
+                  public static void onEquipmentChange(LivingEquipmentChangeEvent event) {
+                      if (event.getEntity().level().isClientSide) {
+                          return;
+                      }
+              
+                      LOGGER.info("装备变化事件: 槽位={}, 旧物品={}, 新物品={}",
+                              event.getSlot(),
+                              event.getFrom().isEmpty() ? "空" : event.getFrom().getDisplayName().getString(),
+                              event.getTo().isEmpty() ? "空" : event.getTo().getDisplayName().getString());
+              
+                      if (event.getSlot() == EquipmentSlot.CHEST) {
+                          LivingEntity entity = event.getEntity();
+                          ItemStack eventTo = event.getTo();
+                          ItemStack actual = entity.getItemBySlot(EquipmentSlot.CHEST);
+              
+                          // 对比日志：event 提供的副本 vs 实体当前槽位
+                          LOGGER.info("装备变化事件诊断:");
+                          LOGGER.info("  event.getTo() identityHash={}, tag keys={}",
+                                  System.identityHashCode(eventTo),
+                                  eventTo.hasTag() && eventTo.getTag() != null ?
+                                          eventTo.getTag().getAllKeys() : "null或空");
+              
+                          LOGGER.info("  entity.getItemBySlot() identityHash={}, tag keys={}",
+                                  System.identityHashCode(actual),
+                                  actual.hasTag() && actual.getTag() != null ?
+                                          actual.getTag().getAllKeys() : "null或空");
+              
+                          // 检查是否有其他模组的DoubleTag格式的ArmorPlate标签
+                          if (eventTo.hasTag()) {
+                              CompoundTag tag = eventTo.getTag();
+                              if (tag.contains("ArmorPlate")) {
+                                  Tag armorPlateTag = tag.get("ArmorPlate");
+                                  LOGGER.info("  检测到其他模组的ArmorPlate标签，类型: {}", armorPlateTag.getType().getName());
+                                  // 如果是DoubleTag，说明是其他模组的数据，我们忽略它
+                                  if (armorPlateTag instanceof net.minecraft.nbt.DoubleTag) {
+                                      LOGGER.info("  这是其他模组的DoubleTag数据，忽略它");
+                                  }
+                              }
+              
+                              // 检查是否有我们的新格式标签
+                              if (tag.contains("ArmorPlateMod_PlateData")) {
+                                  Tag ourTag = tag.get("ArmorPlateMod_PlateData");
+                                  LOGGER.info("  检测到我们的插板标签，类型: {}", ourTag.getType().getName());
+                              }
+                          }
+              
+                          // 关键修复：优先使用实体当前装备槽的 ItemStack
+                          updatePlateAttributes(entity, actual);
+                      }
+                  }
+              
+                  public static void removePlateAttributes(LivingEntity entity) {
+                      if (entity == null) return;
+              
+                      AttributeInstance armorAttr = entity.getAttribute(Attributes.ARMOR);
+                      AttributeInstance toughnessAttr = entity.getAttribute(Attributes.ARMOR_TOUGHNESS);
+              
+                      boolean removedArmor = false;
+                      boolean removedToughness = false;
+              
+                      if (armorAttr != null && armorAttr.getModifier(PLATE_ARMOR_UUID) != null) {
+                          armorAttr.removeModifier(PLATE_ARMOR_UUID);
+                          removedArmor = true;
+                          LOGGER.info("成功移除护甲修饰符: 实体={}", entity.getName().getString());
+                      }
+              
+                      if (toughnessAttr != null && toughnessAttr.getModifier(PLATE_TOUGHNESS_UUID) != null) {
+                          toughnessAttr.removeModifier(PLATE_TOUGHNESS_UUID);
+                          removedToughness = true;
+                          LOGGER.info("成功移除韧性修饰符: 实体={}", entity.getName().getString());
+                      }
+              
+                      if (removedArmor || removedToughness) {
+                          LOGGER.info("移除属性修饰符: 实体={}, 移除了护甲={}, 韧性={}",
+                                  entity.getName().getString(), removedArmor, removedToughness);
+                      }
+                  }
+              
+                  public static void updatePlateAttributes(LivingEntity entity, ItemStack chestplate) {
+                      // 先移除所有可能存在的属性
+                      removePlateAttributes(entity);
+              
+                      // 检查胸甲是否为护甲
+                      if (chestplate.isEmpty() || !(chestplate.getItem() instanceof ArmorItem)) {
+                          LOGGER.info("更新属性: 胸甲为空或不是护甲 - 物品: {}",
+                                  chestplate.isEmpty() ? "空" : chestplate.getItem().getDescriptionId());
+                          return;
+                      }
+              
+                      // 检查是否为胸甲类型
+                      ArmorItem armorItem = (ArmorItem) chestplate.getItem();
+                      if (armorItem.getEquipmentSlot() != EquipmentSlot.CHEST) {
+                          LOGGER.info("更新属性: 物品不是胸甲 - 槽位: {}", armorItem.getEquipmentSlot());
+                          return;
+                      }
+              
+                      LOGGER.info("更新属性: 实体={}, 胸甲={}, 有NBT={}",
+                              entity.getName().getString(),
+                              chestplate.getDisplayName().getString(),
+                              chestplate.hasTag());
+              
+                      // 使用PlateEvents的统一读取方法
+                      ItemStack plate = PlateEvents.readPlateFromChestplate(chestplate);
+              
+                      if (plate.isEmpty()) {
+                          LOGGER.info("胸甲中没有我们的插板或读取失败");
+              
+                          // 如果有其他模组的ArmorPlate标签，记录但不处理
+                          if (chestplate.hasTag()) {
+                              CompoundTag tag = chestplate.getTag();
+                              if (tag.contains("ArmorPlate")) {
+                                  LOGGER.info("胸甲中有其他模组的ArmorPlate标签，忽略它");
+                              }
+                          }
+              
+                          return;
+                      }
+              
+                      LOGGER.info("成功读取插板: {}, 耐久: {}/{}",
+                              plate.getDisplayName().getString(),
+                              plate.getDamageValue(), plate.getMaxDamage());
+              
+                      if (plate.getItem() instanceof ArmorPlateItem armorPlate) {
+                          // 即使插板损坏，也检查但不应用属性
+                          if (!armorPlate.isBroken(plate)) {
+                              double armorBonus = armorPlate.getEffectiveArmorBonus(plate);
+                              double toughnessBonus = armorPlate.getEffectiveToughnessBonus(plate);
+              
+                              LOGGER.info("插板属性: 护甲加成={}, 韧性加成={}", armorBonus, toughnessBonus);
+              
+                              applyPlateAttributes(entity, armorBonus, toughnessBonus);
+                              return;
+                          } else {
+                              LOGGER.info("插板已损坏，不提供属性加成");
+                          }
+                      } else {
+                          LOGGER.info("读取的物品不是ArmorPlateItem，物品类型: {}",
+                                  plate.getItem().getDescriptionId());
+                      }
+              
+                      // 如果没有插板或插板已损坏，确保属性已移除
+                      removePlateAttributes(entity);
+                  }
+              
+                  public static void applyPlateAttributes(LivingEntity entity, double armorBonus, double toughnessBonus) {
+                      if (entity == null || (armorBonus <= 0 && toughnessBonus <= 0)) return;
+              
+                      AttributeInstance armorAttr = entity.getAttribute(Attributes.ARMOR);
+                      AttributeInstance toughnessAttr = entity.getAttribute(Attributes.ARMOR_TOUGHNESS);
+              
+                      boolean appliedArmor = false;
+                      boolean appliedToughness = false;
+              
+                      if (armorAttr != null && armorBonus > 0) {
+                          if (armorAttr.getModifier(PLATE_ARMOR_UUID) != null) {
+                              armorAttr.removeModifier(PLATE_ARMOR_UUID);
+                          }
+              
+                          AttributeModifier modifier = new AttributeModifier(
+                                  PLATE_ARMOR_UUID,
+                                  "Armor Plate Bonus",
+                                  armorBonus,
+                                  AttributeModifier.Operation.ADDITION
+                          );
+              
+                          armorAttr.addPermanentModifier(modifier);
+                          appliedArmor = true;
+              
+                          LOGGER.info("应用护甲加成: +{} 给实体 {}", armorBonus, entity.getName().getString());
+                      }
+              
+                      if (toughnessAttr != null && toughnessBonus > 0) {
+                          if (toughnessAttr.getModifier(PLATE_TOUGHNESS_UUID) != null) {
+                              toughnessAttr.removeModifier(PLATE_TOUGHNESS_UUID);
+                          }
+              
+                          AttributeModifier modifier = new AttributeModifier(
+                                  PLATE_TOUGHNESS_UUID,
+                                  "Armor Toughness Bonus",
+                                  toughnessBonus,
+                                  AttributeModifier.Operation.ADDITION
+                          );
+              
+                          toughnessAttr.addPermanentModifier(modifier);
+                          appliedToughness = true;
+              
+                          LOGGER.info("应用韧性加成: +{} 给实体 {}", toughnessBonus, entity.getName().getString());
+                      }
+              
+                      if (!appliedArmor && !appliedToughness) {
+                          LOGGER.info("没有应用任何属性加成");
+                      }
+                  }
+              }
+              ----------------------------------------
+
+          ├── ChestplateTooltipHandler.java
+            路径: E:\desktop\mdk3\src\main\java\com\armorplate\event\ChestplateTooltipHandler.java
+            内容:
+              ----------------------------------------
+              package com.armorplate.event;
+              
+              import com.armorplate.item.ArmorPlateItem;
+              import net.minecraft.ChatFormatting;
+              import net.minecraft.network.chat.Component;
+              import net.minecraft.world.entity.EquipmentSlot;
+              import net.minecraft.world.entity.player.Player;
+              import net.minecraft.world.item.ArmorItem;
+              import net.minecraft.world.item.ItemStack;
+              import net.minecraftforge.event.entity.player.ItemTooltipEvent;
+              import net.minecraftforge.eventbus.api.SubscribeEvent;
+              import net.minecraftforge.fml.common.Mod;
+              
+              @Mod.EventBusSubscriber(modid = "armorplate", bus = Mod.EventBusSubscriber.Bus.FORGE)
+              public class ChestplateTooltipHandler {
+              
+                  @SubscribeEvent
+                  public static void onItemTooltip(ItemTooltipEvent event) {
+                      ItemStack stack = event.getItemStack();
+                      Player player = event.getEntity();
+              
+                      // 只在有玩家上下文时显示（避免在创造模式物品栏中显示）
+                      if (player == null) {
+                          return;
+                      }
+              
+                      if (stack.getItem() instanceof ArmorItem armorItem) {
+                          if (armorItem.getEquipmentSlot() == EquipmentSlot.CHEST) {
+                              // 使用PlateEvents的统一读取方法
+                              ItemStack plate = PlateEvents.readPlateFromChestplate(stack);
+              
+                              if (!plate.isEmpty()) {
+                                  // 添加分隔线
+                                  event.getToolTip().add(Component.empty());
+              
+                                  // 添加插板信息标题
+                                  event.getToolTip().add(Component.literal("§6§l[防弹插板]").withStyle(ChatFormatting.GOLD));
+              
+                                  // 显示插板类型
+                                  event.getToolTip().add(Component.literal(" §7类型: §f" + plate.getHoverName().getString()));
+              
+                                  // 显示插板耐久
+                                  if (plate.getItem() instanceof ArmorPlateItem armorPlate) {
+                                      int durability = armorPlate.getCurrentDurability(plate);
+                                      int maxDurability = armorPlate.getMaxDurability();
+                                      int durabilityPercent = (int)((float)durability / maxDurability * 100);
+              
+                                      // 根据耐久度选择颜色
+                                      ChatFormatting color;
+                                      if (durabilityPercent >= 70) color = ChatFormatting.GREEN;
+                                      else if (durabilityPercent >= 30) color = ChatFormatting.YELLOW;
+                                      else color = ChatFormatting.RED;
+              
+                                      event.getToolTip().add(Component.literal(" §7耐久: ")
+                                              .append(Component.literal(durability + "/" + maxDurability).withStyle(color))
+                                              .append(Component.literal(" (" + durabilityPercent + "%)").withStyle(ChatFormatting.GRAY)));
+              
+                                      // 显示插板属性（只显示非0的属性）
+                                      double armorBonus = armorPlate.getEffectiveArmorBonus(plate);
+                                      double toughnessBonus = armorPlate.getEffectiveToughnessBonus(plate);
+                                      double damageReduction = armorPlate.getEffectiveDamageReduction(plate) * 100;
+                                      double damageThreshold = armorPlate.getEffectiveDamageThreshold(plate);
+              
+                                      if (armorBonus > 0) {
+                                          event.getToolTip().add(Component.literal(" §7护甲加成: §a+" + String.format("%.1f", armorBonus)));
+                                      }
+                                      if (toughnessBonus > 0) {
+                                          event.getToolTip().add(Component.literal(" §7韧性加成: §a+" + String.format("%.1f", toughnessBonus)));
+                                      }
+                                      if (damageReduction > 0) {
+                                          event.getToolTip().add(Component.literal(" §7子弹减伤: §b" + String.format("%.1f", damageReduction) + "%"));
+                                      }
+                                      if (damageThreshold > 0) {
+                                          event.getToolTip().add(Component.literal(" §7伤害阈值: §e" + String.format("%.1f", damageThreshold)));
+                                      }
+                                  }
+              
+                                  // 添加操作提示
+                                  event.getToolTip().add(Component.empty());
+                                  event.getToolTip().add(Component.literal("§8手持时按 §7[R] §8打开插板界面").withStyle(ChatFormatting.DARK_GRAY));
+              
+                                  // 如果玩家按着Shift，显示更多信息
+                                  if (event.getFlags().isAdvanced() || player.isShiftKeyDown()) {
+                                      event.getToolTip().add(Component.empty());
+                                      event.getToolTip().add(Component.literal("§7NBT数据:").withStyle(ChatFormatting.DARK_GRAY));
+                                      event.getToolTip().add(Component.literal(" §7物品ID: §f" +
+                                              net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(plate.getItem()).toString()));
+                                  }
+                              }
+                          }
+                      }
+                  }
+              }
+              ----------------------------------------
+
+          ├── PlateEvents.java
+            路径: E:\desktop\mdk3\src\main\java\com\armorplate\event\PlateEvents.java
+            内容:
+              ----------------------------------------
+              package com.armorplate.event;
+              
+              import com.armorplate.config.PlateConfig;
+              import com.armorplate.item.ArmorPlateItem;
+              import net.minecraft.ChatFormatting;
+              import net.minecraft.nbt.CompoundTag;
+              import net.minecraft.nbt.Tag;
+              import net.minecraft.network.chat.Component;
+              import net.minecraft.resources.ResourceLocation;
+              import net.minecraft.world.damagesource.DamageSource;
+              import net.minecraft.world.entity.EquipmentSlot;
+              import net.minecraft.world.entity.player.Player;
+              import net.minecraft.world.item.ItemStack;
+              import net.minecraftforge.event.entity.living.LivingDeathEvent;
+              import net.minecraftforge.event.entity.living.LivingHurtEvent;
+              import net.minecraftforge.eventbus.api.EventPriority;
+              import net.minecraftforge.eventbus.api.SubscribeEvent;
+              import net.minecraftforge.fml.common.Mod;
+              import org.apache.logging.log4j.LogManager;
+              import org.apache.logging.log4j.Logger;
+              
+              @Mod.EventBusSubscriber(modid = "armorplate", bus = Mod.EventBusSubscriber.Bus.FORGE)
+              public class PlateEvents {
+                  private static final Logger LOGGER = LogManager.getLogger();
+              
+                  // 关键修改：使用独特的NBT键名
+                  private static final String PLATE_TAG_KEY = "ArmorPlateMod_PlateData";
+                  private static final String OLD_PLATE_TAG_KEY = "ArmorPlate"; // 旧键名，用于迁移
+              
+                  private static long lastProcessedTick = -1;
+                  private static String lastProcessedEntity = "";
+              
+                  @SubscribeEvent(priority = EventPriority.HIGHEST)
+                  public static void onLivingHurt(LivingHurtEvent event) {
+                      if (event.getEntity().level().isClientSide) {
+                          return;
+                      }
+              
+                      long currentTick = event.getEntity().level().getGameTime();
+                      String currentEntity = event.getEntity().getStringUUID();
+              
+                      if (currentTick == lastProcessedTick && currentEntity.equals(lastProcessedEntity)) {
+                          return;
+                      }
+              
+                      lastProcessedTick = currentTick;
+                      lastProcessedEntity = currentEntity;
+              
+                      if (!PlateConfig.ENABLE_SPECIAL_PROTECTION.get()) {
+                          return;
+                      }
+              
+                      LOGGER.info("===== 插板伤害事件开始 =====");
+                      LOGGER.info("实体: {}, UUID: {}",
+                              event.getEntity().getName().getString(),
+                              currentEntity);
+                      LOGGER.info("伤害来源: {}, 类型: {}",
+                              event.getSource().getMsgId(),
+                              event.getSource().type().msgId());
+                      LOGGER.info("原始伤害值: {}", event.getAmount());
+              
+                      if (!(event.getEntity() instanceof Player player)) {
+                          LOGGER.info("受伤实体不是玩家，跳过");
+                          LOGGER.info("===== 插板伤害事件结束 =====");
+                          return;
+                      }
+              
+                      ItemStack chestplate = player.getItemBySlot(EquipmentSlot.CHEST);
+                      if (chestplate.isEmpty()) {
+                          LOGGER.info("玩家未穿戴胸甲");
+                          LOGGER.info("===== 插板伤害事件结束 =====");
+                          return;
+                      }
+              
+                      LOGGER.info("胸甲物品: {}", chestplate.getDisplayName().getString());
+                      LOGGER.info("胸甲有NBT: {}", chestplate.hasTag());
+              
+                      // 使用统一的读取方法
+                      ItemStack plate = readPlateFromChestplate(chestplate);
+              
+                      if (plate.isEmpty()) {
+                          LOGGER.info("胸甲中没有插板或读取失败");
+                          LOGGER.info("===== 插板伤害事件结束 =====");
+                          return;
+                      }
+              
+                      LOGGER.info("从NBT读取插板: {}, 数量: {}",
+                              plate.getDisplayName().getString(), plate.getCount());
+              
+                      if (!(plate.getItem() instanceof ArmorPlateItem armorPlate)) {
+                          LOGGER.info("插板物品不是ArmorPlateItem");
+                          LOGGER.info("===== 插板伤害事件结束 =====");
+                          return;
+                      }
+              
+                      if (armorPlate.isBroken(plate)) {
+                          LOGGER.info("插板已损坏");
+                          LOGGER.info("===== 插板伤害事件结束 =====");
+                          return;
+                      }
+              
+                      float damage = event.getAmount();
+                      DamageSource source = event.getSource();
+              
+                      boolean isBulletDamage = isBulletDamage(source);
+                      LOGGER.info("子弹伤害检查结果: {}", isBulletDamage);
+              
+                      if (isBulletDamage) {
+                          processBulletDamage(event, player, chestplate, plate, armorPlate, damage, source);
+                      } else {
+                          LOGGER.info("不是子弹伤害，跳过处理");
+                          LOGGER.info("===== 插板伤害事件结束 =====");
+                      }
+                  }
+              
+                  private static void processBulletDamage(LivingHurtEvent event, Player player, ItemStack chestplate,
+                                                          ItemStack plate, ArmorPlateItem armorPlate, float damage, DamageSource source) {
+                      // 获取有效的属性（考虑耐久影响）
+                      double damageReduction = armorPlate.getEffectiveDamageReduction(plate);
+                      double damageThreshold = armorPlate.getEffectiveDamageThreshold(plate);
+              
+                      LOGGER.info("插板属性 - 伤害减免: {}%, 伤害阈值: {}",
+                              String.format("%.1f", damageReduction * 100),
+                              String.format("%.1f", damageThreshold));
+              
+                      // 检查插板是否即将损坏
+                      int currentDamage = plate.getDamageValue();
+                      int maxDamage = plate.getMaxDamage();
+                      int remainingDurability = maxDamage - currentDamage;
+              
+                      LOGGER.info("耐久状态: {}/{}, 剩余耐久: {}",
+                              currentDamage, maxDamage, remainingDurability);
+              
+                      // 计算耐久消耗
+                      int durabilityCost = calculateDurabilityCost(damage, damageReduction);
+              
+                      // 确保不会消耗超过剩余耐久
+                      if (durabilityCost > remainingDurability) {
+                          durabilityCost = remainingDurability;
+                          LOGGER.info("调整耐久消耗为剩余耐久: {}", durabilityCost);
+                      }
+              
+                      LOGGER.info("耐久消耗计算: 基础伤害 {}, 减免后 {}, 耐久成本 {}",
+                              damage, damage * (1 - damageReduction), durabilityCost);
+              
+                      // 应用耐久消耗
+                      armorPlate.damagePlate(plate, durabilityCost);
+              
+                      LOGGER.info("更新后插板: {}, 耐久: {}/{}",
+                              plate.getDisplayName().getString(),
+                              plate.getDamageValue(), plate.getMaxDamage());
+              
+                      // 如果插板损坏了
+                      if (armorPlate.isBroken(plate)) {
+                          LOGGER.info("插板已损坏！");
+              
+                          // 保存损坏的插板数据
+                          savePlateToChestplate(chestplate, plate);
+              
+                          // 关键修复：将更新后的胸甲显式设置回玩家装备槽
+                          player.setItemSlot(EquipmentSlot.CHEST, chestplate);
+              
+                          // 更新属性（损坏的插板不提供加成）
+                          AttributeModifiers.updatePlateAttributes(player, chestplate);
+              
+                          player.displayClientMessage(
+                                  Component.literal("§c防弹插板已损坏！").withStyle(ChatFormatting.RED),
+                                  true
+                          );
+              
+                          // 播放损坏音效
+                          player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
+                                  net.minecraft.sounds.SoundEvents.ITEM_BREAK,
+                                  net.minecraft.sounds.SoundSource.PLAYERS, 0.5F, 1.0F);
+              
+                          LOGGER.info("===== 插板损坏，事件结束 =====");
+                          return;
+                      }
+              
+                      // 保存更新后的插板数据到胸甲
+                      savePlateToChestplate(chestplate, plate);
+                      LOGGER.info("已保存更新后的插板NBT");
+              
+                      // 关键修复：显式将修改后的胸甲设置回玩家装备槽
+                      player.setItemSlot(EquipmentSlot.CHEST, chestplate);
+              
+                      LOGGER.info("已将更新后的胸甲设置回玩家装备槽");
+              
+                      // 计算减免后的伤害
+                      float newDamage = damage * (float)(1.0 - damageReduction);
+              
+                      // 确保伤害不会为负数
+                      if (newDamage < 0) {
+                          newDamage = 0;
+                      }
+              
+                      LOGGER.info("伤害减免计算: {} * (1 - {}) = {}", damage, damageReduction, newDamage);
+              
+                      // 检查是否完全抵消伤害
+                      if (damage <= damageThreshold || newDamage <= 0.01f) {
+                          LOGGER.info("伤害完全抵消，取消伤害");
+                          event.setCanceled(true);
+                          player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
+                                  net.minecraft.sounds.SoundEvents.SHIELD_BLOCK,
+                                  net.minecraft.sounds.SoundSource.PLAYERS, 0.5F, 1.0F);
+                          LOGGER.info("===== 伤害完全抵消 =====");
+                          return;
+                      }
+              
+                      // 设置新伤害值
+                      event.setAmount(newDamage);
+                      LOGGER.info("设置新伤害值: {} (减少了{}点)", newDamage, damage - newDamage);
+              
+                      // 播放防护音效
+                      player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
+                              net.minecraft.sounds.SoundEvents.ARMOR_EQUIP_IRON,
+                              net.minecraft.sounds.SoundSource.PLAYERS, 0.3F, 0.8F);
+              
+                      LOGGER.info("===== 插板伤害处理完成 =====");
+                  }
+              
+                  /**
+                   * 统一的保存插板方法，使用独特的键名
+                   */
+                  public static void savePlateToChestplate(ItemStack chestplate, ItemStack plate) {
+                      try {
+                          // 确保胸甲有NBT
+                          CompoundTag chestplateTag = chestplate.getOrCreateTag();
+              
+                          LOGGER.info("保存插板 - 胸甲当前NBT: {}", chestplateTag);
+                          LOGGER.info("保存插板 - 插板物品: {}, 耐久: {}/{}",
+                                  plate.getDisplayName().getString(),
+                                  plate.getDamageValue(), plate.getMaxDamage());
+              
+                          // 验证插板数据
+                          if (plate.isEmpty()) {
+                              LOGGER.info("插板为空，移除插板标签");
+              
+                              // 移除我们的标签
+                              if (chestplateTag.contains(PLATE_TAG_KEY)) {
+                                  chestplateTag.remove(PLATE_TAG_KEY);
+                                  LOGGER.info("已移除 {} 标签", PLATE_TAG_KEY);
+                              }
+              
+                              // 也移除旧标签（兼容性）
+                              if (chestplateTag.contains(OLD_PLATE_TAG_KEY)) {
+                                  chestplateTag.remove(OLD_PLATE_TAG_KEY);
+                                  LOGGER.info("已移除旧标签 {}", OLD_PLATE_TAG_KEY);
+                              }
+              
+                              // 如果NBT为空，设置为null
+                              if (chestplateTag.isEmpty()) {
+                                  chestplate.setTag(null);
+                              } else {
+                                  chestplate.setTag(chestplateTag);
+                              }
+              
+                              LOGGER.info("保存完成 - 胸甲NBT: {}", chestplate.getTag());
+                              return;
+                          }
+              
+                          // 确保插板是ArmorPlateItem
+                          if (!(plate.getItem() instanceof ArmorPlateItem)) {
+                              LOGGER.error("尝试保存非ArmorPlateItem的物品: {}", plate.getItem().getDescriptionId());
+              
+                              // 移除可能存在的错误标签
+                              if (chestplateTag.contains(PLATE_TAG_KEY)) {
+                                  chestplateTag.remove(PLATE_TAG_KEY);
+                              }
+                              if (chestplateTag.contains(OLD_PLATE_TAG_KEY)) {
+                                  chestplateTag.remove(OLD_PLATE_TAG_KEY);
+                              }
+              
+                              chestplate.setTag(chestplateTag);
+                              return;
+                          }
+              
+                          // 创建插板数据标签
+                          CompoundTag plateData = new CompoundTag();
+              
+                          // 保存插板物品数据到Item标签
+                          CompoundTag itemTag = new CompoundTag();
+                          plate.save(itemTag);
+                          plateData.put("Item", itemTag);
+              
+                          // 保存耐久度信息
+                          plateData.putInt("Durability", plate.getDamageValue());
+                          plateData.putInt("MaxDurability", plate.getMaxDamage());
+              
+                          // 保存版本信息
+                          plateData.putInt("Version", 3); // 更新版本号
+              
+                          // 保存时间戳用于调试
+                          plateData.putLong("SaveTime", System.currentTimeMillis());
+              
+                          // 添加我们的模组标识
+                          plateData.putString("Mod", "armorplate");
+                          plateData.putString("ModId", "armorplate");
+              
+                          // 将插板数据放入胸甲NBT中（使用新键名）
+                          chestplateTag.put(PLATE_TAG_KEY, plateData);
+              
+                          // 移除旧键名的数据（如果有）
+                          if (chestplateTag.contains(OLD_PLATE_TAG_KEY)) {
+                              chestplateTag.remove(OLD_PLATE_TAG_KEY);
+                              LOGGER.info("已移除旧格式标签 {}", OLD_PLATE_TAG_KEY);
+                          }
+              
+                          // 必须显式设置回ItemStack！
+                          chestplate.setTag(chestplateTag);
+              
+                          // 验证保存是否成功
+                          if (chestplateTag.contains(PLATE_TAG_KEY)) {
+                              Tag savedTag = chestplateTag.get(PLATE_TAG_KEY);
+                              if (savedTag instanceof CompoundTag) {
+                                  CompoundTag verificationTag = (CompoundTag) savedTag;
+              
+                                  // 检查保存的内容是否正确
+                                  if (!verificationTag.isEmpty() && verificationTag.contains("Item")) {
+                                      LOGGER.info("插板数据保存成功，键名: {}", PLATE_TAG_KEY);
+                                      LOGGER.info("保存的格式检查 - 包含Item标签: {}", verificationTag.contains("Item"));
+                                      LOGGER.info("保存的格式检查 - 包含Durability: {}", verificationTag.contains("Durability"));
+                                      LOGGER.info("保存的格式检查 - 包含MaxDurability: {}", verificationTag.contains("MaxDurability"));
+                                      LOGGER.info("保存的格式检查 - 包含Mod标识: {}", verificationTag.contains("Mod"));
+              
+                                      // 验证Item标签是否可以正确读取
+                                      try {
+                                          ItemStack verifyPlate = ItemStack.of(verificationTag.getCompound("Item"));
+                                          if (!verifyPlate.isEmpty()) {
+                                              LOGGER.info("验证成功 - 可以读取插板: {}, 耐久: {}/{}",
+                                                      verifyPlate.getDisplayName().getString(),
+                                                      verifyPlate.getDamageValue(), verifyPlate.getMaxDamage());
+                                          } else {
+                                              LOGGER.error("验证失败 - 从Item标签读取的插板为空");
+                                          }
+                                      } catch (Exception e) {
+                                          LOGGER.error("验证失败 - 无法从Item标签读取插板: ", e);
+                                      }
+                                  } else {
+                                      LOGGER.error("插板NBT验证失败：保存的NBT为空或缺少Item标签");
+                                  }
+                              } else {
+                                  LOGGER.error("插板NBT验证失败：保存的标签不是CompoundTag，而是{}",
+                                          savedTag.getType().getName());
+                              }
+                          } else {
+                              LOGGER.error("插板数据保存失败：{} 标签不存在", PLATE_TAG_KEY);
+                          }
+              
+                      } catch (Exception e) {
+                          LOGGER.error("保存插板到胸甲时出错: ", e);
+                      }
+                  }
+              
+                  /**
+                   * 统一的读取插板方法，支持旧格式迁移
+                   */
+                  public static ItemStack readPlateFromChestplate(ItemStack chestplate) {
+                      if (!chestplate.hasTag()) {
+                          return ItemStack.EMPTY;
+                      }
+              
+                      CompoundTag chestplateTag = chestplate.getTag();
+              
+                      // 首先尝试使用新键名读取
+                      if (chestplateTag.contains(PLATE_TAG_KEY)) {
+                          Tag armorPlateTagRaw = chestplateTag.get(PLATE_TAG_KEY);
+              
+                          // 处理非CompoundTag的情况
+                          if (!(armorPlateTagRaw instanceof CompoundTag)) {
+                              LOGGER.error("{} 标签不是CompoundTag，而是{}，数据已损坏。尝试修复。",
+                                      PLATE_TAG_KEY, armorPlateTagRaw.getType().getName());
+              
+                              // 移除损坏的标签
+                              chestplateTag.remove(PLATE_TAG_KEY);
+                              chestplate.setTag(chestplateTag);
+                              return ItemStack.EMPTY;
+                          }
+              
+                          CompoundTag plateTag = (CompoundTag) armorPlateTagRaw;
+              
+                          // 如果标签为空，直接返回空
+                          if (plateTag.isEmpty()) {
+                              LOGGER.error("{} 标签为空！可能是保存时出错。", PLATE_TAG_KEY);
+                              return ItemStack.EMPTY;
+                          }
+              
+                          LOGGER.info("读取到 {} 标签，键: {}", PLATE_TAG_KEY, plateTag.getAllKeys());
+              
+                          // 处理新格式
+                          return readPlateFromTag(chestplate, chestplateTag, plateTag);
+                      }
+              
+                      // 如果没有新键名，尝试读取旧键名（迁移）
+                      if (chestplateTag.contains(OLD_PLATE_TAG_KEY)) {
+                          LOGGER.info("检测到旧格式插板数据，进行迁移...");
+              
+                          Tag oldTagRaw = chestplateTag.get(OLD_PLATE_TAG_KEY);
+              
+                          if (oldTagRaw instanceof CompoundTag) {
+                              CompoundTag oldPlateTag = (CompoundTag) oldTagRaw;
+              
+                              // 从旧格式读取
+                              ItemStack plate = readPlateFromTag(chestplate, chestplateTag, oldPlateTag);
+              
+                              if (!plate.isEmpty()) {
+                                  // 迁移到新格式
+                                  savePlateToChestplate(chestplate, plate);
+                                  LOGGER.info("成功从旧格式迁移到新格式");
+                              }
+              
+                              return plate;
+                          } else {
+                              LOGGER.error("旧格式标签类型错误: {}", oldTagRaw.getType().getName());
+                              // 移除损坏的旧标签
+                              chestplateTag.remove(OLD_PLATE_TAG_KEY);
+                              chestplate.setTag(chestplateTag);
+                          }
+                      }
+              
+                      return ItemStack.EMPTY;
+                  }
+              
+                  /**
+                   * 从标签读取插板
+                   */
+                  private static ItemStack readPlateFromTag(ItemStack chestplate, CompoundTag chestplateTag, CompoundTag plateTag) {
+                      // 检测并迁移旧格式（直接包含id的格式）
+                      if (plateTag.contains("id") && !plateTag.contains("Item")) {
+                          LOGGER.info("检测到旧物品格式，进行迁移...");
+              
+                          try {
+                              // 从旧格式读取数据
+                              String plateId = plateTag.getString("id");
+                              int durability = 0;
+                              int maxDurability = 0;
+              
+                              // 尝试读取可能的耐久字段
+                              if (plateTag.contains("Damage")) {
+                                  durability = plateTag.getInt("Damage");
+                              } else if (plateTag.contains("Durability")) {
+                                  durability = plateTag.getInt("Durability");
+                              }
+              
+                              if (plateTag.contains("MaxDurability")) {
+                                  maxDurability = plateTag.getInt("MaxDurability");
+                              }
+              
+                              LOGGER.info("旧格式数据 - ID: {}, 耐久: {}/{}", plateId, durability, maxDurability);
+              
+                              // 创建新格式
+                              CompoundTag newPlateTag = new CompoundTag();
+                              CompoundTag itemTag = new CompoundTag();
+              
+                              // 重建物品数据
+                              itemTag.putString("id", plateId);
+                              itemTag.putInt("Count", 1);
+              
+                              // 如果有Damage标签，也保存
+                              if (plateTag.contains("Damage")) {
+                                  itemTag.putInt("Damage", plateTag.getInt("Damage"));
+                              }
+              
+                              // 如果有自定义标签，也复制
+                              if (plateTag.contains("tag")) {
+                                  itemTag.put("tag", plateTag.getCompound("tag").copy());
+                              }
+              
+                              newPlateTag.put("Item", itemTag);
+                              newPlateTag.putInt("Durability", durability);
+                              newPlateTag.putInt("MaxDurability", maxDurability);
+                              newPlateTag.putString("Mod", "armorplate");
+              
+                              // 保存回胸甲（使用新键名）
+                              chestplateTag.put(PLATE_TAG_KEY, newPlateTag);
+                              chestplate.setTag(chestplateTag);
+              
+                              LOGGER.info("成功迁移旧物品格式到新格式");
+              
+                              // 使用新格式继续处理
+                              plateTag = newPlateTag;
+                          } catch (Exception e) {
+                              LOGGER.error("迁移旧物品格式时出错: ", e);
+                              return ItemStack.EMPTY;
+                          }
+                      }
+              
+                      // 处理新格式
+                      if (plateTag.contains("Item")) {
+                          CompoundTag itemTag = plateTag.getCompound("Item");
+                          try {
+                              ItemStack plate = ItemStack.of(itemTag);
+              
+                              // 如果插板有效，尝试从Durability字段恢复耐久度
+                              if (!plate.isEmpty() && plateTag.contains("Durability")) {
+                                  int savedDurability = plateTag.getInt("Durability");
+                                  // 注意：ItemStack的setDamageValue设置的是损坏值，不是剩余耐久
+                                  if (savedDurability >= 0 && savedDurability <= plate.getMaxDamage()) {
+                                      plate.setDamageValue(savedDurability);
+                                  }
+                              }
+              
+                              LOGGER.info("从新格式成功读取插板: {}, 耐久: {}/{}",
+                                      plate.getDisplayName().getString(),
+                                      plate.getDamageValue(), plate.getMaxDamage());
+              
+                              return plate;
+                          } catch (Exception e) {
+                              LOGGER.error("从Item标签创建插板时出错: ", e);
+                              return ItemStack.EMPTY;
+                          }
+                      }
+              
+                      LOGGER.warn("插板标签格式无法识别，标签内容: {}", plateTag);
+                      return ItemStack.EMPTY;
+                  }
+              
+                  /**
+                   * 获取插板耐久度
+                   */
+                  public static int[] getPlateDurability(ItemStack chestplate) {
+                      int[] result = new int[]{0, 0}; // [current, max]
+              
+                      ItemStack plate = readPlateFromChestplate(chestplate);
+                      if (plate.isEmpty()) {
+                          return result;
+                      }
+              
+                      result[0] = plate.getDamageValue();
+                      result[1] = plate.getMaxDamage();
+              
+                      return result;
+                  }
+              
+                  @SubscribeEvent
+                  public static void onPlayerDeath(LivingDeathEvent event) {
+                      if (!(event.getEntity() instanceof Player player)) {
+                          return;
+                      }
+              
+                      LOGGER.info("===== 玩家死亡事件开始 =====");
+                      LOGGER.info("玩家: {}", player.getName().getString());
+              
+                      ItemStack chestplate = player.getItemBySlot(EquipmentSlot.CHEST);
+                      if (chestplate.isEmpty()) {
+                          LOGGER.info("玩家未穿戴胸甲");
+                          LOGGER.info("===== 玩家死亡事件结束 =====");
+                          return;
+                      }
+              
+                      LOGGER.info("死亡时胸甲物品: {}", chestplate.getDisplayName().getString());
+                      LOGGER.info("死亡时胸甲有NBT: {}", chestplate.hasTag());
+              
+                      ItemStack plate = readPlateFromChestplate(chestplate);
+                      if (!plate.isEmpty()) {
+                          LOGGER.info("死亡时胸甲中的插板: {}, 耐久: {}/{}",
+                                  plate.getDisplayName().getString(),
+                                  plate.getDamageValue(), plate.getMaxDamage());
+              
+                          // 重新保存以确保格式正确
+                          savePlateToChestplate(chestplate, plate);
+                          LOGGER.info("已重新保存插板数据到死亡胸甲");
+              
+                          player.setItemSlot(EquipmentSlot.CHEST, chestplate);
+                      } else {
+                          LOGGER.info("死亡时胸甲中没有插板");
+                      }
+              
+                      LOGGER.info("===== 玩家死亡事件结束 =====");
+                  }
+              
+                  private static int calculateDurabilityCost(float damage, double reduction) {
+                      int baseCost = 1;
+                      double effectiveDamage = damage * reduction; // 实际承受的伤害
+              
+                      // 只有当有效伤害大于0时才计算额外消耗
+                      if (effectiveDamage <= 0) {
+                          return baseCost; // 最小消耗
+                      }
+              
+                      // 避免除数为0，并确保消耗合理
+                      int additionalCost = Math.max(0, (int)(effectiveDamage / 5.0));
+              
+                      // 总消耗不超过10，避免一次攻击消耗过多耐久
+                      return Math.min(baseCost + additionalCost, 10);
+                  }
+              
+                  private static boolean isBulletDamage(DamageSource source) {
+                      try {
+                          String damageType = source.getMsgId();
+                          LOGGER.info("伤害类型字符串: {}", damageType);
+              
+                          var damageTypeHolder = source.typeHolder();
+                          if (damageTypeHolder != null) {
+                              var damageTypeKey = damageTypeHolder.unwrapKey();
+                              if (damageTypeKey.isPresent()) {
+                                  ResourceLocation damageTypeId = damageTypeKey.get().location();
+                                  LOGGER.info("伤害类型注册名: {}", damageTypeId);
+              
+                                  String namespace = damageTypeId.getNamespace();
+                                  String path = damageTypeId.getPath();
+              
+                                  if ("tacz".equals(namespace)) {
+                                      boolean isTaczBullet = path.contains("bullet") || path.contains("gun");
+                                      LOGGER.info("TACZ伤害检测: {}, 路径: {}", isTaczBullet, path);
+                                      return isTaczBullet;
+                                  }
+              
+                                  if ("superbwarfare".equals(namespace)) {
+                                      boolean isSuperbWarfare = path.contains("gunfire") ||
+                                              path.contains("laser") ||
+                                              path.contains("projectile") ||
+                                              path.contains("bullet") ||
+                                              path.contains("shock") ||
+                                              path.contains("phosphorus") ||
+                                              path.contains("explosion");
+                                      LOGGER.info("SuperbWarfare伤害检测: {}, 路径: {}", isSuperbWarfare, path);
+                                      return isSuperbWarfare;
+                                  }
+                              }
+                          }
+              
+                          if (source.getDirectEntity() != null) {
+                              String entityType = source.getDirectEntity().getType().toString();
+                              LOGGER.info("直接实体类型: {}", entityType);
+              
+                              if (entityType.contains("bullet") || entityType.contains("projectile") ||
+                                      entityType.contains("tacz") || entityType.contains("gun")) {
+                                  LOGGER.info("通过实体类型识别为子弹伤害");
+                                  return true;
+                              }
+                          }
+              
+                          String sourceString = source.toString();
+                          LOGGER.info("伤害来源字符串: {}", sourceString);
+              
+                          if (sourceString.contains("tacz") || sourceString.contains("bullet") ||
+                                  sourceString.contains("gun") || sourceString.contains("superbwarfare")) {
+                              LOGGER.info("通过字符串匹配识别为子弹伤害");
+                              return true;
+                          }
+              
+                          LOGGER.info("未识别为子弹伤害");
+                          return false;
+              
+                      } catch (Exception e) {
+                          LOGGER.error("检查子弹伤害时发生错误: ", e);
+                          return false;
+                      }
+                  }
+              }
+              ----------------------------------------
+
+          └── PlateKeyHandlerServer.java
+            路径: E:\desktop\mdk3\src\main\java\com\armorplate\event\PlateKeyHandlerServer.java
+            内容:
+              ----------------------------------------
+              package com.armorplate.event;
+              
+              import com.armorplate.screen.PlateMenu;
+              import net.minecraft.server.level.ServerPlayer;
+              import net.minecraft.world.SimpleContainer;
+              import net.minecraft.world.entity.player.Inventory;
+              import net.minecraftforge.network.NetworkHooks;
+              import org.apache.logging.log4j.LogManager;
+              import org.apache.logging.log4j.Logger;
+              import net.minecraft.world.item.ItemStack;
+              
+              public class PlateKeyHandlerServer {
+                  private static final Logger LOGGER = LogManager.getLogger();
+              
+                  public static void openPlateGUI(ServerPlayer player, ItemStack chestplate) {
+                      LOGGER.info("PlateKeyHandlerServer: 为玩家 {} 打开GUI", player.getName().getString());
+              
+                      // 使用 -1 作为槽位索引，表示手持
+                      int slotIndex = -1;
+              
+                      NetworkHooks.openScreen(player, new net.minecraft.world.MenuProvider() {
+                          @Override
+                          public net.minecraft.network.chat.Component getDisplayName() {
+                              return chestplate.getHoverName();
+                          }
+              
+                          @Override
+                          public net.minecraft.world.inventory.AbstractContainerMenu createMenu(
+                                  int containerId,
+                                  Inventory playerInventory,
+                                  net.minecraft.world.entity.player.Player player
+                          ) {
+                              LOGGER.info("创建PlateMenu，容器ID: {}", containerId);
+                              return new PlateMenu(containerId, playerInventory,
+                                      new SimpleContainer(1), chestplate, slotIndex);
+                          }
+                      }, buf -> {
+                          buf.writeItem(chestplate);
+                          buf.writeInt(slotIndex);
+                      });
+                  }
+              }
+              ----------------------------------------
+
+        ├── [init]/
+          └── ModItems.java
+            路径: E:\desktop\mdk3\src\main\java\com\armorplate\init\ModItems.java
+            内容:
+              ----------------------------------------
+              package com.armorplate.init;
+              
+              import com.armorplate.ArmorPlateMod;
+              import com.armorplate.item.ArmorPlateItem;
+              import com.armorplate.item.PlateTier;
+              import net.minecraft.world.item.Item;
+              import net.minecraftforge.registries.DeferredRegister;
+              import net.minecraftforge.registries.ForgeRegistries;
+              import net.minecraftforge.registries.RegistryObject;
+              
+              public class ModItems {
+                  public static final DeferredRegister<Item> ITEMS =
+                          DeferredRegister.create(ForgeRegistries.ITEMS, ArmorPlateMod.MODID);
+              
+                  // 修复：确保使用正确的构造函数
+                  public static final RegistryObject<Item> STEEL_PLATE = ITEMS.register("steel_plate",
+                          () -> new ArmorPlateItem(PlateTier.STEEL,
+                                  new Item.Properties()
+                                          .stacksTo(1)
+                                          .durability(PlateTier.STEEL.getMaxDurability())));
+              
+                  public static final RegistryObject<Item> CERAMIC_PLATE = ITEMS.register("ceramic_plate",
+                          () -> new ArmorPlateItem(PlateTier.CERAMIC,
+                                  new Item.Properties()
+                                          .stacksTo(1)
+                                          .durability(PlateTier.CERAMIC.getMaxDurability())));
+              
+                  public static final RegistryObject<Item> COMPOSITE_PLATE = ITEMS.register("composite_plate",
+                          () -> new ArmorPlateItem(PlateTier.COMPOSITE,
+                                  new Item.Properties()
+                                          .stacksTo(1)
+                                          .durability(PlateTier.COMPOSITE.getMaxDurability())));
+              }
+              ----------------------------------------
+
+        ├── [item]/
+          ├── ArmorPlateItem.java
+            路径: E:\desktop\mdk3\src\main\java\com\armorplate\item\ArmorPlateItem.java
+            内容:
+              ----------------------------------------
+              package com.armorplate.item;
+              
+              import net.minecraft.ChatFormatting;
+              import net.minecraft.nbt.CompoundTag;
+              import net.minecraft.network.chat.Component;
+              import net.minecraft.world.item.Item;
+              import net.minecraft.world.item.ItemStack;
+              import net.minecraft.world.item.TooltipFlag;
+              import net.minecraft.world.level.Level;
+              import org.jetbrains.annotations.Nullable;
+              
+              import java.util.List;
+              
+              public class ArmorPlateItem extends Item {
+              
+                  // 插板属性
+                  private final double baseArmorBonus;
+                  private final double baseToughnessBonus;
+                  private final double baseDamageReduction; // 0.0-1.0
+                  private final double baseDamageThreshold;
+                  private final int maxDurability;
+                  private final PlateTier tier;
+              
+                  // 修复：添加6参数构造函数用于NBT读取
+                  public ArmorPlateItem(Properties properties,
+                                        double armorBonus,
+                                        double toughnessBonus,
+                                        double damageReduction,
+                                        double damageThreshold,
+                                        int maxDurability) {
+                      super(properties.defaultDurability(maxDurability));
+                      this.tier = null; // 没有使用PlateTier
+                      this.baseArmorBonus = armorBonus;
+                      this.baseToughnessBonus = toughnessBonus;
+                      this.baseDamageReduction = Math.min(damageReduction, 1.0);
+                      this.baseDamageThreshold = damageThreshold;
+                      this.maxDurability = maxDurability;
+                  }
+              
+                  // 新构造函数（使用PlateTier）
+                  public ArmorPlateItem(PlateTier tier, Properties properties) {
+                      super(properties.defaultDurability(tier.getMaxDurability()));
+                      this.tier = tier;
+              
+                      // 从PlateTier获取配置值
+                      this.baseArmorBonus = tier.getArmorBonus();
+                      this.baseToughnessBonus = tier.getToughnessBonus();
+                      this.baseDamageReduction = Math.min(tier.getDamageReduction(), 1.0);
+                      this.baseDamageThreshold = tier.getDamageThreshold();
+                      this.maxDurability = tier.getMaxDurability();
+                  }
+              
+                  // 获取有效的护甲加成
+                  public double getEffectiveArmorBonus(ItemStack stack) {
+                      if (isBroken(stack)) {
+                          return 0.0;
+                      }
+              
+                      double durabilityPercent = getDurabilityPercent(stack);
+                      if (durabilityPercent <= 0.3) {
+                          return this.baseArmorBonus * 0.5;
+                      } else if (durabilityPercent <= 0.6) {
+                          return this.baseArmorBonus * 0.75;
+                      }
+              
+                      return this.baseArmorBonus;
+                  }
+              
+                  public double getEffectiveToughnessBonus(ItemStack stack) {
+                      if (isBroken(stack)) {
+                          return 0.0;
+                      }
+              
+                      double durabilityPercent = getDurabilityPercent(stack);
+                      if (durabilityPercent <= 0.3) {
+                          return this.baseToughnessBonus * 0.5;
+                      } else if (durabilityPercent <= 0.6) {
+                          return this.baseToughnessBonus * 0.75;
+                      }
+              
+                      return this.baseToughnessBonus;
+                  }
+              
+                  public double getEffectiveDamageReduction(ItemStack stack) {
+                      if (isBroken(stack)) {
+                          return 0.0;
+                      }
+              
+                      double durabilityPercent = getDurabilityPercent(stack);
+                      double reduction = this.baseDamageReduction;
+              
+                      if (durabilityPercent <= 0.1) {
+                          reduction *= 0.3;
+                      } else if (durabilityPercent <= 0.3) {
+                          reduction *= 0.5;
+                      } else if (durabilityPercent <= 0.6) {
+                          reduction *= 0.75;
+                      }
+              
+                      return Math.min(reduction, 1.0);
+                  }
+              
+                  public double getEffectiveDamageThreshold(ItemStack stack) {
+                      if (isBroken(stack)) {
+                          return 0.0;
+                      }
+              
+                      double durabilityPercent = getDurabilityPercent(stack);
+                      double threshold = this.baseDamageThreshold;
+              
+                      if (durabilityPercent <= 0.1) {
+                          threshold *= 0.3;
+                      } else if (durabilityPercent <= 0.3) {
+                          threshold *= 0.5;
+                      } else if (durabilityPercent <= 0.6) {
+                          threshold *= 0.75;
+                      }
+              
+                      return threshold;
+                  }
+              
+                  private double getDurabilityPercent(ItemStack stack) {
+                      int currentDamage = stack.getDamageValue();
+                      return Math.max(0.0, (double)(this.maxDurability - currentDamage) / this.maxDurability);
+                  }
+              
+                  public int getCurrentDurability(ItemStack stack) {
+                      return Math.max(0, this.maxDurability - stack.getDamageValue());
+                  }
+              
+                  public int getMaxDurability() {
+                      return this.maxDurability;
+                  }
+              
+                  public boolean isBroken(ItemStack stack) {
+                      return stack.getDamageValue() >= this.maxDurability;
+                  }
+              
+                  // 修复：优化耐久消耗方法
+                  public void damagePlate(ItemStack stack, int amount) {
+                      if (isBroken(stack)) {
+                          return;
+                      }
+              
+                      int newDamage = stack.getDamageValue() + amount;
+              
+                      if (newDamage >= this.maxDurability) {
+                          // 插板损坏
+                          stack.setDamageValue(this.maxDurability);
+              
+                          // 添加损坏标记
+                          CompoundTag tag = stack.getOrCreateTag();
+                          tag.putBoolean("Broken", true);
+                          stack.setTag(tag);
+                      } else {
+                          stack.setDamageValue(newDamage);
+                      }
+                  }
+              
+                  @Override
+                  public void appendHoverText(ItemStack stack, @Nullable Level level,
+                                              List<Component> tooltip, TooltipFlag flag) {
+                      super.appendHoverText(stack, level, tooltip, flag);
+              
+                      tooltip.add(Component.empty());
+                      tooltip.add(Component.literal("§6防弹插板").withStyle(ChatFormatting.GOLD));
+              
+                      int current = getCurrentDurability(stack);
+                      int max = getMaxDurability();
+                      double percent = getDurabilityPercent(stack) * 100;
+              
+                      ChatFormatting color;
+                      if (percent >= 70) color = ChatFormatting.GREEN;
+                      else if (percent >= 30) color = ChatFormatting.YELLOW;
+                      else color = ChatFormatting.RED;
+              
+                      tooltip.add(Component.literal(" §7耐久: ")
+                              .append(Component.literal(current + "/" + max).withStyle(color))
+                              .append(Component.literal(" (" + String.format("%.0f", percent) + "%)").withStyle(ChatFormatting.GRAY)));
+              
+                      if (isBroken(stack)) {
+                          tooltip.add(Component.literal(" §c§l已损坏").withStyle(ChatFormatting.RED));
+                          return;
+                      }
+              
+                      double armorBonus = getEffectiveArmorBonus(stack);
+                      double toughnessBonus = getEffectiveToughnessBonus(stack);
+                      double damageReduction = getEffectiveDamageReduction(stack) * 100;
+                      double damageThreshold = getEffectiveDamageThreshold(stack);
+              
+                      tooltip.add(Component.literal(" §7属性:"));
+              
+                      if (armorBonus > 0) {
+                          tooltip.add(Component.literal("  §7+§a" + String.format("%.1f", armorBonus) + " 护甲值"));
+                      }
+                      if (toughnessBonus > 0) {
+                          tooltip.add(Component.literal("  §7+§a" + String.format("%.1f", toughnessBonus) + " 韧性"));
+                      }
+                      if (damageReduction > 0) {
+                          tooltip.add(Component.literal("  §7+§b" + String.format("%.1f", damageReduction) + "% 子弹减伤"));
+                      }
+                      if (damageThreshold > 0) {
+                          tooltip.add(Component.literal("  §7+§e" + String.format("%.1f", damageThreshold) + " 伤害阈值"));
+                      }
+              
+                      double percentEffect = getDurabilityPercent(stack) * 100;
+                      if (percentEffect < 100) {
+                          tooltip.add(Component.literal(" §7当前效果: §e" + String.format("%.0f", percentEffect) + "%"));
+                      }
+                  }
+              
+                  @Override
+                  public boolean isBarVisible(ItemStack stack) {
+                      return true;
+                  }
+              
+                  @Override
+                  public int getBarWidth(ItemStack stack) {
+                      return Math.round(13.0F * (float)(1.0 - (double)stack.getDamageValue() / this.maxDurability));
+                  }
+              
+                  @Override
+                  public int getBarColor(ItemStack stack) {
+                      double percent = getDurabilityPercent(stack);
+                      if (percent > 0.7) return ChatFormatting.GREEN.getColor();
+                      if (percent > 0.3) return ChatFormatting.YELLOW.getColor();
+                      return ChatFormatting.RED.getColor();
+                  }
+              
+                  public PlateTier getTier() {
+                      return this.tier;
+                  }
+              
+                  // 修复：添加获取基础属性的方法，用于调试
+                  public double getBaseArmorBonus() {
+                      return this.baseArmorBonus;
+                  }
+              
+                  public double getBaseToughnessBonus() {
+                      return this.baseToughnessBonus;
+                  }
+              
+                  public double getBaseDamageReduction() {
+                      return this.baseDamageReduction;
+                  }
+              
+                  public double getBaseDamageThreshold() {
+                      return this.baseDamageThreshold;
+                  }
+              }
+              ----------------------------------------
+
+          └── PlateTier.java
+            路径: E:\desktop\mdk3\src\main\java\com\armorplate\item\PlateTier.java
+            内容:
+              ----------------------------------------
+              package com.armorplate.item;
+              
+              import com.armorplate.config.PlateConfig;
+              
+              public enum PlateTier {
+                  STEEL("steel"),
+                  CERAMIC("ceramic"),
+                  COMPOSITE("composite");
+              
+                  private final String name;
+              
+                  PlateTier(String name) {
+                      this.name = name;
+                  }
+              
+                  public double getArmorBonus() {
+                      // 使用配置值，不同类型可以有不同加成
+                      return switch (this) {
+                          case STEEL -> PlateConfig.BASE_ARMOR_BONUS.get() * 1.0;
+                          case CERAMIC -> PlateConfig.BASE_ARMOR_BONUS.get() * 1.5;
+                          case COMPOSITE -> PlateConfig.BASE_ARMOR_BONUS.get() * 2.0;
+                      };
+                  }
+              
+                  public double getToughnessBonus() {
+                      return switch (this) {
+                          case STEEL -> PlateConfig.BASE_TOUGHNESS_BONUS.get() * 1.0;
+                          case CERAMIC -> PlateConfig.BASE_TOUGHNESS_BONUS.get() * 0.8;
+                          case COMPOSITE -> PlateConfig.BASE_TOUGHNESS_BONUS.get() * 1.5;
+                      };
+                  }
+              
+                  public double getDamageReduction() {
+                      // 使用配置百分比，不同类型有不同加成
+                      return switch (this) {
+                          case STEEL -> PlateConfig.DAMAGE_REDUCTION_PERCENT.get() * 0.8;
+                          case CERAMIC -> PlateConfig.DAMAGE_REDUCTION_PERCENT.get() * 1.2;
+                          case COMPOSITE -> PlateConfig.DAMAGE_REDUCTION_PERCENT.get() * 1.5;
+                      };
+                  }
+              
+                  public double getDamageThreshold() {
+                      // 使用配置阈值，不同类型有不同加成
+                      return switch (this) {
+                          case STEEL -> PlateConfig.DAMAGE_THRESHOLD.get() * 0.8;
+                          case CERAMIC -> PlateConfig.DAMAGE_THRESHOLD.get() * 1.0;
+                          case COMPOSITE -> PlateConfig.DAMAGE_THRESHOLD.get() * 1.2;
+                      };
+                  }
+              
+                  // 添加最大耐久度方法
+                  public int getMaxDurability() {
+                      return switch (this) {
+                          case STEEL -> PlateConfig.STEEL_PLATE_DURABILITY.get();
+                          case CERAMIC -> PlateConfig.CERAMIC_PLATE_DURABILITY.get();
+                          case COMPOSITE -> PlateConfig.COMPOSITE_PLATE_DURABILITY.get();
+                      };
+                  }
+              
+                  public String getName() { return name; }
+              }
+              ----------------------------------------
+
+        ├── [network]/
+          └── OpenPlateGUIPacket.java
+            路径: E:\desktop\mdk3\src\main\java\com\armorplate\network\OpenPlateGUIPacket.java
+            内容:
+              ----------------------------------------
+              package com.armorplate.network;
+              
+              import com.armorplate.ArmorPlateMod;
+              import net.minecraft.network.FriendlyByteBuf;
+              import net.minecraft.server.level.ServerPlayer;
+              import net.minecraft.world.item.ItemStack;
+              import net.minecraftforge.network.NetworkEvent;
+              import org.apache.logging.log4j.LogManager;
+              import org.apache.logging.log4j.Logger;
+              
+              import java.util.function.Supplier;
+              
+              public class OpenPlateGUIPacket {
+                  private static final Logger LOGGER = LogManager.getLogger();
+                  private final ItemStack chestplate;
+              
+                  public OpenPlateGUIPacket(ItemStack chestplate) {
+                      this.chestplate = chestplate.copy();
+                  }
+              
+                  public static void encode(OpenPlateGUIPacket packet, FriendlyByteBuf buffer) {
+                      buffer.writeItem(packet.chestplate);
+                  }
+              
+                  public static OpenPlateGUIPacket decode(FriendlyByteBuf buffer) {
+                      return new OpenPlateGUIPacket(buffer.readItem());
+                  }
+              
+                  public static void handle(OpenPlateGUIPacket packet, Supplier<NetworkEvent.Context> context) {
+                      context.get().enqueueWork(() -> {
+                          ServerPlayer player = context.get().getSender();
+                          if (player != null) {
+                              LOGGER.info("服务器收到打开GUI请求，玩家: {}", player.getName().getString());
+                              // 使用玩家当前手中的物品，而不是网络包中的物品
+                              ItemStack currentHeldItem = player.getMainHandItem();
+                              if (!currentHeldItem.isEmpty() && currentHeldItem.getItem() instanceof net.minecraft.world.item.ArmorItem armorItem) {
+                                  if (armorItem.getEquipmentSlot() == net.minecraft.world.entity.EquipmentSlot.CHEST) {
+                                      LOGGER.info("打开GUI，胸甲: {}", currentHeldItem.getDisplayName().getString());
+                                      com.armorplate.event.PlateKeyHandlerServer.openPlateGUI(player, currentHeldItem.copy());
+                                  } else {
+                                      LOGGER.info("当前手持的不是胸甲");
+                                  }
+                              } else {
+                                  LOGGER.info("当前手中没有物品或不是护甲");
+                              }
+                          }
+                      });
+                      context.get().setPacketHandled(true);
+                  }
+              }
+              ----------------------------------------
+
+        ├── [screen]/
+          ├── ModMenuTypes.java
+            路径: E:\desktop\mdk3\src\main\java\com\armorplate\screen\ModMenuTypes.java
+            内容:
+              ----------------------------------------
+              package com.armorplate.screen;
+              
+              import com.armorplate.ArmorPlateMod;
+              import net.minecraft.world.inventory.MenuType;
+              import net.minecraftforge.common.extensions.IForgeMenuType;
+              import net.minecraftforge.registries.DeferredRegister;
+              import net.minecraftforge.registries.ForgeRegistries;
+              import net.minecraftforge.registries.RegistryObject;
+              
+              public class ModMenuTypes {
+                  public static final DeferredRegister<MenuType<?>> MENUS =
+                          DeferredRegister.create(ForgeRegistries.MENU_TYPES, ArmorPlateMod.MODID);
+              
+                  public static final RegistryObject<MenuType<PlateMenu>> PLATE_MENU = MENUS.register("plate_menu",
+                          () -> IForgeMenuType.create((containerId, inventory, data) -> {
+                              // 这里的数据应该与我们在 openScreen 中写入的一致
+                              net.minecraft.world.item.ItemStack chestplate = data.readItem();
+                              int slotIndex = data.readInt();
+                              return new PlateMenu(containerId, inventory,
+                                      new net.minecraft.world.SimpleContainer(1), chestplate, slotIndex);
+                          }));
+              }
+              ----------------------------------------
+
+          ├── PlateMenu.java
+            路径: E:\desktop\mdk3\src\main\java\com\armorplate\screen\PlateMenu.java
+            内容:
+              ----------------------------------------
+              package com.armorplate.screen;
+              
+              import com.armorplate.event.AttributeModifiers;
+              import com.armorplate.event.PlateEvents;
+              import com.armorplate.item.ArmorPlateItem;
+              import net.minecraft.nbt.CompoundTag;
+              import net.minecraft.world.SimpleContainer;
+              import net.minecraft.world.entity.EquipmentSlot;
+              import net.minecraft.world.entity.player.Inventory;
+              import net.minecraft.world.entity.player.Player;
+              import net.minecraft.world.inventory.AbstractContainerMenu;
+              import net.minecraft.world.inventory.Slot;
+              import net.minecraft.world.item.ItemStack;
+              import org.apache.logging.log4j.LogManager;
+              import org.apache.logging.log4j.Logger;
+              
+              public class PlateMenu extends AbstractContainerMenu {
+                  private static final Logger LOGGER = LogManager.getLogger();
+              
+                  private final SimpleContainer plateContainer;
+                  private final ItemStack chestplate;
+                  private final int chestplateSlot;
+                  private boolean hasBeenSaved = false;
+              
+                  public PlateMenu(int containerId, Inventory playerInventory, SimpleContainer plateContainer,
+                                   ItemStack chestplate, int chestplateSlot) {
+                      super(ModMenuTypes.PLATE_MENU.get(), containerId);
+                      LOGGER.info("创建PlateMenu: chestplate={}, chestplateSlot={}",
+                              chestplate.getDisplayName().getString(), chestplateSlot);
+              
+                      this.plateContainer = plateContainer;
+                      this.chestplate = chestplate;
+                      this.chestplateSlot = chestplateSlot;
+              
+                      // 插板槽位
+                      this.addSlot(new Slot(plateContainer, 0, 80, 35) {
+                          @Override
+                          public boolean mayPlace(ItemStack stack) {
+                              return stack.getItem() instanceof ArmorPlateItem;
+                          }
+              
+                          @Override
+                          public int getMaxStackSize() {
+                              return 1;
+                          }
+              
+                          @Override
+                          public void setChanged() {
+                              super.setChanged();
+                              LOGGER.info("插板槽位改变: {}",
+                                      getItem().isEmpty() ? "空" : getItem().getDisplayName().getString());
+                              updateChestplateNBT(playerInventory.player);
+                          }
+                      });
+              
+                      // 玩家物品栏
+                      for(int i = 0; i < 3; ++i) {
+                          for(int j = 0; j < 9; ++j) {
+                              this.addSlot(new Slot(playerInventory, j + i * 9 + 9, 8 + j * 18, 84 + i * 18));
+                          }
+                      }
+              
+                      // 玩家快捷栏
+                      for(int k = 0; k < 9; ++k) {
+                          this.addSlot(new Slot(playerInventory, k, 8 + k * 18, 142));
+                      }
+              
+                      initSlotFromNBT();
+                  }
+              
+                  private void initSlotFromNBT() {
+                      if (!chestplate.isEmpty()) {
+                          ItemStack plate = getPlateFromNBT(chestplate);
+                          if (!plate.isEmpty()) {
+                              LOGGER.info("从NBT初始化插板槽位: {}", plate.getDisplayName().getString());
+                              plateContainer.setItem(0, plate.copy());
+                          } else {
+                              LOGGER.info("胸甲NBT中没有插板");
+                          }
+                      }
+                  }
+              
+                  @Override
+                  public ItemStack quickMoveStack(Player player, int index) {
+                      ItemStack itemstack = ItemStack.EMPTY;
+                      Slot slot = this.slots.get(index);
+              
+                      if (slot != null && slot.hasItem()) {
+                          ItemStack itemstack1 = slot.getItem();
+                          itemstack = itemstack1.copy();
+              
+                          LOGGER.info("quickMoveStack: index={}, item={}",
+                                  index, itemstack1.getDisplayName().getString());
+              
+                          if (index == 0) {
+                              // 从插板槽移动到背包
+                              if (!this.moveItemStackTo(itemstack1, 1, 37, true)) {
+                                  return ItemStack.EMPTY;
+                              }
+                              slot.onTake(player, itemstack1);
+              
+                              // 插板被移出，立即更新NBT
+                              updateChestplateNBT(player);
+                          } else if (itemstack1.getItem() instanceof ArmorPlateItem) {
+                              // 从背包移动到插板槽
+                              if (!this.moveItemStackTo(itemstack1, 0, 1, false)) {
+                                  return ItemStack.EMPTY;
+                              }
+              
+                              // 插板被放入，立即更新NBT
+                              updateChestplateNBT(player);
+                          } else if (index < 28) {
+                              // 从背包移动到快捷栏
+                              if (!this.moveItemStackTo(itemstack1, 28, 37, false)) {
+                                  return ItemStack.EMPTY;
+                              }
+                          } else if (index < 37) {
+                              // 从快捷栏移动到背包
+                              if (!this.moveItemStackTo(itemstack1, 1, 28, false)) {
+                                  return ItemStack.EMPTY;
+                              }
+                          }
+              
+                          if (itemstack1.isEmpty()) {
+                              slot.set(ItemStack.EMPTY);
+                          } else {
+                              slot.setChanged();
+                          }
+                      }
+              
+                      return itemstack;
+                  }
+              
+                  @Override
+                  public boolean stillValid(Player player) {
+                      return true; // 简化验证
+                  }
+              
+                  @Override
+                  public void removed(Player player) {
+                      super.removed(player);
+              
+                      LOGGER.info("PlateMenu.removed: 开始保存插板状态");
+              
+                      // 获取插板槽位的物品
+                      ItemStack plate = plateContainer.getItem(0);
+              
+                      if (!chestplate.isEmpty()) {
+                          if (!plate.isEmpty()) {
+                              // 修复关键：保存插板到胸甲NBT
+                              savePlateToNBT(chestplate, plate);
+                              LOGGER.info("PlateMenu.removed: 保存插板 {} 到胸甲NBT，耐久: {}/{}",
+                                      plate.getDisplayName().getString(),
+                                      plate.getDamageValue(), plate.getMaxDamage());
+                          } else {
+                              // 如果插板槽为空，清除插板数据
+                              if (chestplate.hasTag() && chestplate.getTag().contains("ArmorPlate")) {
+                                  chestplate.getTag().remove("ArmorPlate");
+                                  LOGGER.info("PlateMenu.removed: 清除胸甲中的插板数据");
+                              }
+                          }
+              
+                          // 更新物品栏中的胸甲
+                          if (chestplateSlot >= 0 && chestplateSlot < player.getInventory().getContainerSize()) {
+                              player.getInventory().setItem(chestplateSlot, chestplate);
+                              LOGGER.info("PlateMenu.removed: 更新物品栏槽位 {} 的胸甲", chestplateSlot);
+                          }
+              
+                          // 检查玩家当前装备的胸甲是否是这个胸甲
+                          ItemStack equippedChestplate = player.getItemBySlot(EquipmentSlot.CHEST);
+                          if (isSameChestplate(chestplate, equippedChestplate)) {
+                              LOGGER.info("PlateMenu.removed: 玩家穿着这个胸甲，更新装备槽");
+                              player.setItemSlot(EquipmentSlot.CHEST, chestplate);
+                          }
+                      }
+              
+                      // 更新属性
+                      AttributeModifiers.updatePlateAttributes(player, player.getItemBySlot(EquipmentSlot.CHEST));
+              
+                      LOGGER.info("PlateMenu.removed: 完成保存");
+                      hasBeenSaved = true;
+                  }
+              
+                  private void updateChestplateNBT(Player player) {
+                      ItemStack plate = plateContainer.getItem(0);
+                      LOGGER.info("updateChestplateNBT: 插板槽内容 = {}",
+                              plate.isEmpty() ? "空" : plate.getDisplayName().getString());
+              
+                      if (!chestplate.isEmpty()) {
+                          if (!plate.isEmpty()) {
+                              // 保存插板到NBT
+                              savePlateToNBT(chestplate, plate);
+                              LOGGER.info("保存插板到胸甲NBT: {}", plate.getDisplayName().getString());
+              
+                              // 如果是ArmorPlateItem，应用属性加成
+                              if (plate.getItem() instanceof ArmorPlateItem armorPlate) {
+                                  if (!armorPlate.isBroken(plate)) {
+                                      double armorBonus = armorPlate.getEffectiveArmorBonus(plate);
+                                      double toughnessBonus = armorPlate.getEffectiveToughnessBonus(plate);
+                                      com.armorplate.event.AttributeModifiers.applyPlateAttributes(player, armorBonus, toughnessBonus);
+                                      LOGGER.info("应用属性加成 - 护甲: {}, 韧性: {}", armorBonus, toughnessBonus);
+                                  } else {
+                                      LOGGER.info("插板已损坏，不提供加成");
+                                      com.armorplate.event.AttributeModifiers.removePlateAttributes(player);
+                                  }
+                              }
+                          } else {
+                              // 移除插板
+                              removePlateFromNBT(chestplate);
+                              LOGGER.info("从胸甲NBT移除插板");
+                              com.armorplate.event.AttributeModifiers.removePlateAttributes(player);
+                          }
+              
+                          // 更新玩家物品栏中的胸甲
+                          if (chestplateSlot >= 0 && chestplateSlot < player.getInventory().getContainerSize()) {
+                              LOGGER.info("updateChestplateNBT: 更新物品栏槽位 {}", chestplateSlot);
+                              player.getInventory().setItem(chestplateSlot, chestplate);
+                          } else if (chestplateSlot == -1) {
+                              // 手持胸甲的情况
+                              LOGGER.info("updateChestplateNBT: 更新主手持物品");
+                              player.getInventory().setItem(player.getInventory().selected, chestplate);
+                          }
+              
+                          // 如果玩家当前装备着这个胸甲，也更新装备槽
+                          ItemStack equippedChestplate = player.getItemBySlot(EquipmentSlot.CHEST);
+                          if (isSameChestplate(chestplate, equippedChestplate)) {
+                              LOGGER.info("updateChestplateNBT: 玩家穿着这个胸甲，更新装备槽");
+                              player.setItemSlot(EquipmentSlot.CHEST, chestplate);
+                          }
+              
+                          LOGGER.info("updateChestplateNBT: 完成 - 胸甲有NBT: {}", chestplate.hasTag());
+                      } else {
+                          LOGGER.info("updateChestplateNBT: 胸甲为空");
+                      }
+                  }
+              
+                  // NBT操作方法
+                  private ItemStack getPlateFromNBT(ItemStack chestplate) {
+                      // 使用PlateEvents的统一读取方法
+                      return PlateEvents.readPlateFromChestplate(chestplate);
+                  }
+              
+                  private void savePlateToNBT(ItemStack chestplate, ItemStack plate) {
+                      // 使用PlateEvents的统一保存方法
+                      PlateEvents.savePlateToChestplate(chestplate, plate);
+                  }
+              
+                  // 在PlateMenu.java中，找到removePlateFromNBT方法并修改：
+              
+                  private void removePlateFromNBT(ItemStack chestplate) {
+                      var chestplateNbt = chestplate.getTag();
+                      if (chestplateNbt != null) {
+                          // 移除我们的新标签
+                          if (chestplateNbt.contains("ArmorPlateMod_PlateData")) {
+                              chestplateNbt.remove("ArmorPlateMod_PlateData");
+                              LOGGER.info("已移除我们的插板标签: ArmorPlateMod_PlateData");
+                          }
+                          // 也移除旧标签（兼容性）
+                          if (chestplateNbt.contains("ArmorPlate")) {
+                              chestplateNbt.remove("ArmorPlate");
+                              LOGGER.info("已移除旧插板标签: ArmorPlate");
+                          }
+              
+                          // 如果NBT为空，设置为null
+                          if (chestplateNbt.isEmpty()) {
+                              chestplate.setTag(null);
+                          } else {
+                              chestplate.setTag(chestplateNbt);
+                          }
+                      }
+                  }
+              
+                  // 辅助方法：比较两个胸甲是否相同
+                  private boolean isSameChestplate(ItemStack chestplate1, ItemStack chestplate2) {
+                      if (chestplate1.isEmpty() || chestplate2.isEmpty()) {
+                          return false;
+                      }
+              
+                      // 比较物品类型
+                      if (chestplate1.getItem() != chestplate2.getItem()) {
+                          return false;
+                      }
+              
+                      // 比较NBT哈希（如果有的话）
+                      if (chestplate1.hasTag() != chestplate2.hasTag()) {
+                          return false;
+                      }
+              
+                      if (chestplate1.hasTag() && chestplate2.hasTag()) {
+                          // 比较NBT内容
+                          return chestplate1.getTag().equals(chestplate2.getTag());
+                      }
+              
+                      return true;
+                  }
+              }
+              ----------------------------------------
+
+          └── PlateScreen.java
+            路径: E:\desktop\mdk3\src\main\java\com\armorplate\screen\PlateScreen.java
+            内容:
+              ----------------------------------------
+              package com.armorplate.screen;
+              
+              import com.armorplate.ArmorPlateMod;
+              import com.mojang.blaze3d.systems.RenderSystem;
+              import net.minecraft.client.gui.GuiGraphics;
+              import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+              import net.minecraft.client.renderer.GameRenderer;
+              import net.minecraft.network.chat.Component;
+              import net.minecraft.resources.ResourceLocation;
+              import net.minecraft.world.entity.player.Inventory;
+              
+              public class PlateScreen extends AbstractContainerScreen<PlateMenu> {
+                  private static final ResourceLocation TEXTURE =
+                          ResourceLocation.fromNamespaceAndPath(ArmorPlateMod.MODID, "textures/gui/plate_container.png");
+              
+                  public PlateScreen(PlateMenu menu, Inventory playerInventory, Component title) {
+                      super(menu, playerInventory, title);
+                      this.imageWidth = 176;
+                      this.imageHeight = 166;
+                      this.inventoryLabelY = this.imageHeight - 94;
+                  }
+              
+                  @Override
+                  protected void renderBg(GuiGraphics guiGraphics, float partialTick, int mouseX, int mouseY) {
+                      RenderSystem.setShader(GameRenderer::getPositionTexShader);
+                      RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+                      RenderSystem.setShaderTexture(0, TEXTURE);
+              
+                      int x = (width - imageWidth) / 2;
+                      int y = (height - imageHeight) / 2;
+                      guiGraphics.blit(TEXTURE, x, y, 0, 0, imageWidth, imageHeight, 256, 256);
+                  }
+              
+                  @Override
+                  protected void renderLabels(GuiGraphics guiGraphics, int mouseX, int mouseY) {
+                      // 绘制标题
+                      guiGraphics.drawString(this.font, this.title,
+                              this.titleLabelX, this.titleLabelY, 0x404040, false);
+              
+                      // 绘制玩家物品栏标签
+                      guiGraphics.drawString(this.font, this.playerInventoryTitle,
+                              this.inventoryLabelX, this.inventoryLabelY, 0x404040, false);
+                  }
+              
+                  @Override
+                  public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float delta) {
+                      this.renderBackground(guiGraphics); // 修复：只有一个参数
+                      super.render(guiGraphics, mouseX, mouseY, delta);
+                      this.renderTooltip(guiGraphics, mouseX, mouseY);
+                  }
+              }
+              ----------------------------------------
+
+        ├── [util]/
+          ├── PlateNBTFixer.java
+            路径: E:\desktop\mdk3\src\main\java\com\armorplate\util\PlateNBTFixer.java
+            内容:
+              ----------------------------------------
+              package com.armorplate.util;
+              
+              import net.minecraft.nbt.CompoundTag;
+              import net.minecraft.nbt.Tag;
+              import net.minecraft.world.item.ItemStack;
+              import org.apache.logging.log4j.LogManager;
+              import org.apache.logging.log4j.Logger;
+              
+              public class PlateNBTFixer {
+                  private static final Logger LOGGER = LogManager.getLogger();
+              
+                  /**
+                   * 修复损坏的ArmorPlate NBT标签
+                   * 返回true表示修复成功，false表示无法修复
+                   */
+                  public static boolean fixBrokenArmorPlateTag(ItemStack chestplate) {
+                      if (!chestplate.hasTag()) {
+                          return false;
+                      }
+              
+                      CompoundTag tag = chestplate.getTag();
+                      if (!tag.contains("ArmorPlate")) {
+                          return false;
+                      }
+              
+                      Tag armorPlateTag = tag.get("ArmorPlate");
+              
+                      // 检查是否是DoubleTag（损坏的格式）
+                      if (armorPlateTag instanceof net.minecraft.nbt.DoubleTag) {
+                          LOGGER.error("检测到损坏的DoubleTag格式的ArmorPlate标签，尝试修复");
+              
+                          // 移除损坏的标签
+                          tag.remove("ArmorPlate");
+              
+                          // 如果NBT为空，设置为null
+                          if (tag.isEmpty()) {
+                              chestplate.setTag(null);
+                          } else {
+                              chestplate.setTag(tag);
+                          }
+              
+                          LOGGER.error("已修复损坏的ArmorPlate标签（移除）");
+                          return true;
+                      }
+              
+                      // 检查是否是空的CompoundTag
+                      if (armorPlateTag instanceof CompoundTag) {
+                          CompoundTag plateTag = (CompoundTag) armorPlateTag;
+                          if (plateTag.isEmpty()) {
+                              LOGGER.error("检测到空的ArmorPlate CompoundTag，尝试修复");
+              
+                              // 移除空的标签
+                              tag.remove("ArmorPlate");
+              
+                              // 如果NBT为空，设置为null
+                              if (tag.isEmpty()) {
+                                  chestplate.setTag(null);
+                              } else {
+                                  chestplate.setTag(tag);
+                              }
+              
+                              LOGGER.error("已修复空的ArmorPlate标签（移除）");
+                              return true;
+                          }
+                      }
+              
+                      return false;
+                  }
+              
+                  /**
+                   * 安全地读取ArmorPlate标签
+                   */
+                  public static CompoundTag getSafeArmorPlateTag(ItemStack chestplate) {
+                      if (!chestplate.hasTag()) {
+                          return null;
+                      }
+              
+                      CompoundTag tag = chestplate.getTag();
+                      if (!tag.contains("ArmorPlate")) {
+                          return null;
+                      }
+              
+                      Tag armorPlateTag = tag.get("ArmorPlate");
+                      if (!(armorPlateTag instanceof CompoundTag)) {
+                          // 尝试修复
+                          fixBrokenArmorPlateTag(chestplate);
+                          return null;
+                      }
+              
+                      return (CompoundTag) armorPlateTag;
+                  }
+              }
+              ----------------------------------------
+
+          └── PlateNBTHelper.java
+            路径: E:\desktop\mdk3\src\main\java\com\armorplate\util\PlateNBTHelper.java
+            内容:
+              ----------------------------------------
+              package com.armorplate.util;
+              
+              import com.armorplate.event.PlateEvents;
+              import net.minecraft.world.item.ItemStack;
+              
+              public class PlateNBTHelper {
+                  /**
+                   * 从胸甲NBT读取插板（使用统一的方法）
+                   */
+                  public static ItemStack getPlateFromNBT(ItemStack chestplate) {
+                      return PlateEvents.readPlateFromChestplate(chestplate);
+                  }
+              
+                  /**
+                   * 保存插板到胸甲NBT（使用统一的方法）
+                   */
+                  public static void savePlateToNBT(ItemStack chestplate, ItemStack plate) {
+                      PlateEvents.savePlateToChestplate(chestplate, plate);
+                  }
+              
+                  /**
+                   * 检查胸甲是否有插板
+                   */
+                  public static boolean hasPlate(ItemStack chestplate) {
+                      return !getPlateFromNBT(chestplate).isEmpty();
+                  }
+              
+                  /**
+                   * 清除胸甲中的插板数据
+                   */
+                  public static void removePlateFromNBT(ItemStack chestplate) {
+                      if (chestplate.hasTag() && chestplate.getTag().contains("ArmorPlate")) {
+                          chestplate.getTag().remove("ArmorPlate");
+                          // 如果NBT为空，设置为null
+                          if (chestplate.getTag().isEmpty()) {
+                              chestplate.setTag(null);
+                          }
+                      }
+                  }
+              }
+              ----------------------------------------
+
+  ├── [resources]/
+    ├── pack.mcmeta
+      路径: E:\desktop\mdk3\src\main\resources\pack.mcmeta
+      类型: 二进制或未支持文本格式（.mcmeta）
+
+    ├── [assets]/
+      ├── [armorplate]/
+        ├── [lang]/
+          ├── en_us.json
+            路径: E:\desktop\mdk3\src\main\resources\assets\armorplate\lang\en_us.json
+            内容:
+              ----------------------------------------
+              {
+                "item.armorplate.steel_plate": "Steel Plate",
+                "item.armorplate.ceramic_plate": "Ceramic Plate",
+                "item.armorplate.composite_plate": "Composite Plate",
+              
+                "tooltip.armorplate.armor_bonus": "Armor Bonus",
+                "tooltip.armorplate.toughness_bonus": "Toughness Bonus",
+                "tooltip.armorplate.damage_reduction": "Damage Reduction",
+                "tooltip.armorplate.threshold": "Damage Threshold",
+                "tooltip.armorplate.instructions": "§7Place in chestplate slot to activate",
+              
+                "message.armorplate.plate_installed": "§aArmor plate installed",
+                "message.armorplate.already_has_plate": "§cChestplate already has a plate",
+                "message.armorplate.plate_removed": "§eArmor plate removed",
+              
+                "message.armorplate.plate_broken": "§cArmor plate broken, cannot install",
+                "message.armorplate.plate_broken_removed": "§eBroken armor plate removed",
+                "tooltip.armorplate.durability": "1",
+                "container.armorplate.plate_menu": "1",
+                "key.armorplate.open_plate_gui": "Open Plate GUI",
+                "category.armorplate.plates": "Armor Plates"
+              }
+              ----------------------------------------
+
+          └── zh_cn.json
+            路径: E:\desktop\mdk3\src\main\resources\assets\armorplate\lang\zh_cn.json
+            内容:
+              ----------------------------------------
+              {
+                "item.armorplate.steel_plate": "钢板插板",
+                "item.armorplate.ceramic_plate": "陶瓷插板",
+                "item.armorplate.composite_plate": "复合插板",
+              
+                "tooltip.armorplate.armor_bonus": "护甲加成",
+                "tooltip.armorplate.toughness_bonus": "韧性加成",
+                "tooltip.armorplate.damage_reduction": "伤害减免",
+                "tooltip.armorplate.threshold": "伤害阈值",
+                "tooltip.armorplate.instructions": "§7放置于胸甲槽位中生效",
+              
+                "message.armorplate.plate_installed": "§a防弹插板已安装",
+                "message.armorplate.already_has_plate": "§c胸甲已装有插板",
+                "message.armorplate.plate_removed": "§e防弹插板已移除",
+              
+                "message.armorplate.plate_broken": "§c防弹插板已损坏，无法安装",
+                "message.armorplate.plate_broken_removed": "§e防弹插板已损坏并消失",
+                "tooltip.armorplate.durability": "耐久",
+                "container.armorplate.plate_menu": "防弹插板",
+                "key.armorplate.open_plate_gui": "打开插板GUI",
+                "category.armorplate.plates": "防弹插板"
+              
+              }
+              ----------------------------------------
+
+        ├── [textures]/
+          ├── [gui]/
+            └── plate_container.png
+              路径: E:\desktop\mdk3\src\main\resources\assets\armorplate\textures\gui\plate_container.png
+              类型: 二进制或未支持文本格式（.png）
+
+          ├── [item]/
+    ├── [META-INF]/
+      └── mods.toml
+        路径: E:\desktop\mdk3\src\main\resources\META-INF\mods.toml
+        类型: 二进制或未支持文本格式（.toml）
+
+├── [test]/
+  ├── [java]/
+  ├── [resources]/
+============================================================
+扫描完成！
+总计处理文件: 22 个
+跳过文件/目录: 1 个 (包括脚本自身和忽略列表)

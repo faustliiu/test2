@@ -1,0 +1,43 @@
+# 防弹插板模组默认配置
+# 所有插板属性均可独立配置
+
+[global]
+enableSpecialProtection = true
+
+[steel_plate]
+enabled = true
+armorBonus = 4.0
+toughnessBonus = 2.0
+damageThreshold = 6.0
+damageReductionPercent = 0.3
+durability = 200
+
+[ceramic_plate]
+enabled = true
+armorBonus = 6.0
+toughnessBonus = 1.6
+damageThreshold = 8.0
+damageReductionPercent = 0.36
+durability = 150
+
+[composite_plate]
+enabled = true
+armorBonus = 8.0
+toughnessBonus = 3.0
+damageThreshold = 10.0
+damageReductionPercent = 0.45
+durability = 300
+
+[advanced]
+enableDurabilityEffect = true
+durabilityEffectThreshold1 = 0.1
+durabilityEffectThreshold2 = 0.3
+durabilityEffectThreshold3 = 0.6
+durabilityEffectMultiplier1 = 0.3
+durabilityEffectMultiplier2 = 0.5
+durabilityEffectMultiplier3 = 0.75
+durabilityEffectMultiplier4 = 1.0
+
+baseDurabilityCost = 1
+damageToDurabilityRatio = 0.2
+maxDurabilityCostPerHit = 10

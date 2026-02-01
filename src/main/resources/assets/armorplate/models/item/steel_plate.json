@@ -1,0 +1,22 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "armorplate:item/steel_plate"
+  },
+  "overrides": [
+    {
+      "predicate": {
+        "damaged": 0,
+        "damage": 0.01
+      },
+      "model": "armorplate:item/steel_plate"
+    },
+    {
+      "predicate": {
+        "damaged": 1,
+        "damage": 0.01
+      },
+      "model": "armorplate:item/steel_plate_broken"
+    }
+  ]
+}

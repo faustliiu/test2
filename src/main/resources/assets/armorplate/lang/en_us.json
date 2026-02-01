@@ -1,0 +1,22 @@
+{
+  "item.armorplate.steel_plate": "Steel Plate",
+  "item.armorplate.ceramic_plate": "Ceramic Plate",
+  "item.armorplate.composite_plate": "Composite Plate",
+
+  "tooltip.armorplate.armor_bonus": "Armor Bonus",
+  "tooltip.armorplate.toughness_bonus": "Toughness Bonus",
+  "tooltip.armorplate.damage_reduction": "Damage Reduction",
+  "tooltip.armorplate.threshold": "Damage Threshold",
+  "tooltip.armorplate.instructions": "§7Place in chestplate slot to activate",
+
+  "message.armorplate.plate_installed": "§aArmor plate installed",
+  "message.armorplate.already_has_plate": "§cChestplate already has a plate",
+  "message.armorplate.plate_removed": "§eArmor plate removed",
+
+  "message.armorplate.plate_broken": "§cArmor plate broken, cannot install",
+  "message.armorplate.plate_broken_removed": "§eBroken armor plate removed",
+  "tooltip.armorplate.durability": "1",
+  "container.armorplate.plate_menu": "1",
+  "key.armorplate.open_plate_gui": "Open Plate GUI",
+  "category.armorplate.plates": "Armor Plates"
+}

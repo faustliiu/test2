@@ -1,0 +1,26 @@
+modLoader="javafml"
+loaderVersion="[47,)"
+license="All rights reserved"
+
+[[mods]]
+modId="armorplate"
+version="1.0.0"
+displayName="Armor Plate Mod"
+authors="_OnlyTuTu"
+description='''
+添加防弹插板系统，为胸甲提供额外防护。
+'''
+
+[[dependencies.armorplate]]
+modId="forge"
+mandatory=true
+versionRange="[47.4.10,)"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.armorplate]]
+modId="minecraft"
+mandatory=true
+versionRange="[1.20.1,1.21)"
+ordering="NONE"
+side="BOTH"
